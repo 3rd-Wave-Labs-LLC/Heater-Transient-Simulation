@@ -46,7 +46,7 @@ class PID:
         self.dispKi:float
         self.dispKd:float
 
-        self.SampleTime = 100  # default Controller Sample Time is 0.1 seconds
+        self.SampleTime = 1  # default Controller Sample Time is 0.1 seconds
         self.SetTunings(Kp, Ki, Kd, self.P_ON_E)
 
         self.lastTime = self.millis() - self.SampleTime
