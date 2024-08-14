@@ -10,9 +10,9 @@ emissivity_h = 0.85 #emisivity of the Aluminum nitride heater
 emissivity_s = 0.5 #emisivity of the surroundings
 emissivity = 1 / ((1 / emissivity_h) + (1 / emissivity_s) - 1) #emisivity of the system
 R_heater_0 = 2.23  # resistance of the heater [Ohm] at T_amb
-V = 380.0  # heater voltage [V]
-I_limit = 30  # current limit [A]
-pwm_max_percent = min(1, I_limit /(V / R_heater_0)) #calculate the maximum drive fraction for the heater based on the ratio of the V/R_heater_0 to the current limit but contrin it to 1
+V = 240.0  # heater voltage [V]
+I_limit = 60  # current limit [A]
+pwm_max_percent = min(1, I_limit /(V / R_heater_0)) #initial maximum drive fraction for the heater to meet the current limit
 h_n = 20  # natural convection heat transfer coefficient [W/m^2*K]
 h_f = 3000  # forced cooling convection heat transfer coefficient [W/m^2*K]
 h = h_f
@@ -66,7 +66,7 @@ Input = 21.0 # Initial temperature of the heater [°C]
 Output = 0.0 # Initial output of the heater [0-100%]
 Setpoint = 350.0 # Desired temperature of the heater [°C]
 
-Kp = 300.0 # Proportional gain 
+Kp = 1000.0 # Proportional gain 
 Ki = 0.18 # Integral gain
 Kd = 0.0 # Derivative gain
 
@@ -102,7 +102,7 @@ pid = PID(Input, Output, Setpoint, Kp, Ki, Kd, PID.DIRECT)
 
 # Main function
 def main():
-    global emulation_dt_ms, R_heater
+    global emulation_dt_ms, R_heater, pwm_max_percent
 
     pid.SetMode(PID.AUTOMATIC) # Set PID to automatic mode\
     pid.SetSampleTime(1)  # Sample time in seconds
@@ -124,7 +124,9 @@ def main():
         P_heater = V * V / R_heater * pid.Output / 4095  # Power to the heater
         mCP = mass * (Cp_b + ( Cp_m * pid.Input))  # heat capacity C [J/K], save some computation time
         I_heater = V / R_heater * pid.Output / 4095
-        random_noise = 0 # (random.uniform(-2.5, 2.5) / 10) # set to 0 to fall out of a coconut tree
+        pwm_max_percent = min(1, I_limit /(V / R_heater))
+        pid.SetOutputLimits(0, pwm_max_percent*4095)
+        random_noise = (random.uniform(-2.5, 2.5) / 10) * (pid.Output / 4095) # set to 0 to fall out of a coconut tree
 
         pid.Input = pid.Input + (((pid.Output / 4095 * P_heater) - P_loss_c - P_loss_r) / mCP * emulation_dt_ms / 1000) + random_noise
 
