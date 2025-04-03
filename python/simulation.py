@@ -9,25 +9,33 @@ sigma = 5.67e-8  # Stefan-Boltzmann constant [W/m^2*K^4]
 emissivity_h = 0.85 #emisivity of the Aluminum nitride heater
 emissivity_s = 0.5 #emisivity of the surroundings
 emissivity = 1 / ((1 / emissivity_h) + (1 / emissivity_s) - 1) #emisivity of the system
-R_heater_0 = 1 * 2.23  # resistance of the heater [Ohm] at T_amb
-V = 240.0  # heater voltage [V]
-I_limit = 60  # current limit [A]
+R_heater_0 = 1 * 5.6  # resistance of the heater [Ohm] at T_amb
+V = 24  # heater voltage [V]
+I_limit = 5  # current limit [A]
 pwm_max_percent = min(1, I_limit /(V / R_heater_0)) #initial maximum drive fraction for the heater to meet the current limit
 h_n = 20  # natural convection heat transfer coefficient [W/m^2*K]
-h_f = 3000  # forced cooling convection heat transfer coefficient [W/m^2*K]
+h_f = 1000  # forced cooling convection heat transfer coefficient [W/m^2*K]
 h = h_f
-A = .0258 * 2  # surface area for convection heat transfer [m^2] (per heater zone)
-Cp = 740.0  # heater material heat capacity [J/kg*K]
+
+Cp = 970.0  # heater material heat capacity [J/kg*K]
 Cp_b = 735.79  # block material heat capacity at 0C (linear fit from 20-400C)
 Cp_m = 0.2105  # block material heat capacity  at 0C (linear fit from 20-400C)
-mass = 0.090  # mass of the heater and coupled mass [kg](per heater zone)
-T_amb = 20.0  # ambient temperature for convection [C]
-alpha = 0.003  # temperature coefficient of resistance [1/C]
+#calculte the volume and the mass of the heater with inputs x, y, and z dimensions in mm and density in kg/m^3
+density = 2670  # density of the heater material [kg/m^3]
+x = 19  # x dimension of the heater [mm]
+y = 16  # y dimension of the heater [mm]
+z = 8  # z dimension of the heater [mm]
+volume = x * y * z * 1e-9
+mass = volume * density *2 # mass of the heater and coupled mass [kg](per heater zone)
+A = (z*((2*x) + (2*y)) + (2 * x * y) ) * 1E-6 # surface area for convection heat transfer [m^2] (per heater zone)
+#mass = 0.090  
+T_amb = 24.0  # ambient temperature for convection [C]
+alpha = 0.00393  # temperature coefficient of resistance [1/C]
 
 #Simulation Parameters
 emulation_dt_ms = 1  # Emulation time step [ms]
-total_sim_time = 120000  # Total simulation time [ms]
-Power_off_time = 2500 # Time to turn off the heater [ms] (increase to look at the cooling rate)
+total_sim_time = 60000  # Total simulation time [ms]
+Power_off_time = 30000 # Time to turn off the heater [ms] (increase to look at the cooling rate)
 
 #Define a list of tuples containing the the constants defined above
 constants = [
@@ -38,7 +46,7 @@ constants = [
     ('R_heater_0', R_heater_0, 'resistance of the heater [Ohm] at T_amb'),
     ('V', V, 'heater voltage [V]'),
     ('I_limit', I_limit, 'current limit [A]'),
-    ('pwm_max_percent', pwm_max_percent, 'maximum drive fraction for the heater as a percentage'),
+    ('pwm_max_percent', pwm_max_percent, 'initial maximum drive fraction for the heater to meet the current limit'),
     ('h_n', h_n, 'natural convection heat transfer coefficient [W/m^2*K]'),
     ('h_f', h_f, 'forced cooling convection heat transfer coefficient [W/m^2*K]'),
     ('h', h, 'heat transfer coefficient [W/m^2*K]'),
@@ -46,10 +54,20 @@ constants = [
     ('Cp', Cp, 'heater material heat capacity [J/kg*K]'),
     ('Cp_b', Cp_b, 'block material heat capacity at 0C (linear fit from 20-400C)'),
     ('Cp_m', Cp_m, 'block material heat capacity  at 0C (linear fit from 20-400C)'),
+    ('density', density, 'density of the heater material [kg/m^3]'),
+    ('x', x, 'x dimension of the heater [mm]'),
+    ('y', y, 'y dimension of the heater [mm]'),
+    ('z', z, 'z dimension of the heater [mm]'),
+    ('volume', volume, 'volume of the heater [m^3]'),
     ('mass', mass, 'mass of the heater and coupled mass [kg](per heater zone)'),
     ('T_amb', T_amb, 'ambient temperature for convection [C]'),
-    ('alpha', alpha, 'temperature coefficient of resistance [1/C]')
+    ('alpha', alpha, 'temperature coefficient of resistance [1/C]'),
+    ('emulation_dt_ms', emulation_dt_ms, 'Emulation time step [ms]'),
+    ('total_sim_time', total_sim_time, 'Total simulation time [ms]'),
+    ('Power_off_time', Power_off_time, 'Time to turn off the heater [ms] (increase to look at the cooling rate)')
 ]
+
+
 
 #print titled table of constants
 # Print the header
@@ -67,12 +85,12 @@ for name, value, comment in constants:
 #pwm_max_percent = .56  # maximum PWM value
 
 # Control Variables
-Input = 21.0 # Initial temperature of the heater [°C]
+Input = 24.0 # Initial temperature of the heater [°C]
 Output = 0.0 # Initial output of the heater [0-100%]
-Setpoint = 350.0 # Desired temperature of the heater [°C]
+Setpoint = 175.0 # Desired temperature of the heater [°C]
 
-Kp = 1000.0 # Proportional gain 
-Ki = 0.18 # Integral gain
+Kp = 600.0 # Proportional gain 
+Ki = 2.0 # Integral gain
 Kd = 0.0 # Derivative gain
 
 # Define a list of tuples containing the constant name, value, and comment
@@ -119,6 +137,7 @@ def main():
     while pid.time_counter_ms < total_sim_time:  # Run for 5000 milliseconds (5 seconds)
         if pid.time_counter_ms > Power_off_time:
             pid.Setpoint = T_amb
+            h = h_f  # Switch to forced convection
         P_loss_c = h * A * (pid.Input - T_amb)  # Convection loss here only
         P_loss_r = sigma * A * emissivity * (pid.Input + 273.15) ** 4 # Radiation loss here only
         R_heater = R_heater_0 * (1 + alpha * (pid.Input - T_amb))  # Resistance of the heater
@@ -143,6 +162,12 @@ def main():
         Resistance_Data = np.append(Resistance_Data, R_heater)
         Current_Data = np.append(Current_Data, I_heater)
         #print(f'{current_time_ms/total_sim_time*100:.2f}% complete')
+    #calculate the maximum of Input_Data and round to the next highest 10s place
+    max_input = np.ceil(np.max(Input_Data) / 10) * 10
+
+    #calculate the maximum of Setpoint_Data and round to the next highest 10s place
+    max_setpoint = np.ceil(np.max(Setpoint_Data) / 10) * 10
+    
     #calculate the instantaneous ramp rates
     Ramp_Rate = np.gradient(Input_Data, Time_Data) #convert to [C/s]
 
@@ -161,8 +186,15 @@ def main():
     ax1.plot(Time_Data, Current_Data, 'm-', label='Current [A]', lw=2)
     ax1.plot(Time_Data, Ramp_Rate, 'c-', label='Ramp Rate [°C/s]', lw=2)
     #set the ax1 tick interval to 10 C
-    ax1.set_yticks(np.arange(0, 400, 25))
+    ax1.set_yticks(np.arange(0, max_setpoint, 25))
     
+    # Force the x and left y-axis to cross at (0,0)
+    ax1.spines['left'].set_position(('data', 0))
+    ax1.spines['bottom'].set_position(('data', 0))
+
+    # Set the x-axis and y-axis limits to start at 0
+    ax1.set_xlim(left=0)
+    ax1.set_ylim(bottom=0)
     
     # Create a secondary y-axis for the Resistance_Data and Ramp_Rate
     ax2 = ax1.twinx()
@@ -177,6 +209,9 @@ def main():
     
     #set the plot size in pixels to 16x9 ratio with a width of 1600 pixels
     plt.gcf().set_size_inches(16, 9)
+    
+    plt.tight_layout()
+
 
     plt.show()
 
